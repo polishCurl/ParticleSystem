@@ -49,7 +49,7 @@ typedef struct {
 **********************************************************************/
 
 // Constant parameters
-#define POINT_SIZE 1					// radius of point in pixels
+#define POINT_SIZE 5					// radius of point in pixels
 #define EYE_X 0.0						// camera position
 #define EYE_Y 0.0
 #define EYE_Z 500.0
