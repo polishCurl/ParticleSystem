@@ -6,8 +6,8 @@
 * Brief:        COMP37111 Assignment, particle system implementation.
 *               Simulation of a fountain and smoke 
 **********************************************************************/
-
 #include "particleSystem.h"
+
 
 /*********************************************************************
 * Main method
@@ -16,9 +16,8 @@ int main(int argc, char *argv[])
 {
   double f;
   srand(time(NULL));
+  initParticleSystem();
   initGraphics(argc, argv);
-  glEnable(GL_POINT_SMOOTH);
-  glPointSize(POINT_SIZE);
   glutMainLoop();
 }
 
@@ -36,6 +35,8 @@ void initGraphics(int argc, char *argv[])
   glutDisplayFunc(display);
   glutKeyboardFunc(keyboard);
   glutReshapeFunc(reshape);
+  glEnable(GL_POINT_SMOOTH);
+  glPointSize(POINT_SIZE);
   makeAxes();
 }
 
@@ -57,7 +58,23 @@ void display()
   progressTime();
   glutPostRedisplay();
   calculateFPS();
+  displayData();
   glutSwapBuffers();                        // Double buffering in place
+}
+
+
+/*********************************************************************
+* Initialise the particle systems
+**********************************************************************/
+void initParticleSystem()
+{
+  // Set the initial values of particle system parameters
+  fountain.totalParticles = DEFAULT_NO_OF_PARTICLES;
+  fountain.aliveParticles = 0;
+  smokeEmitter.totalParticles = DEFAULT_NO_OF_PARTICLES;
+  smokeEmitter.aliveParticles = 0;
+  smokeEmitter.r = smokeEmitter.g = smokeEmitter.b = SMOKE_SHADE;
+  smokeEmitter.chaoticSpeed = SMOKE_CHAOS_SPEED_VAR;
 }
 
 
@@ -68,42 +85,31 @@ void spawnParticles()
 {
   int index;
 
-  for (index = 0; index < noOfWaterdrops; index++) 
+  for (index = fountain.aliveParticles; index < fountain.totalParticles; index++) 
   {
-    if (water[index].alive == 0) 
-    {
-      water[index].xpos = FOUNTAIN_X;
-      water[index].ypos = FOUNTAIN_Y;
-      water[index].zpos = FOUNTAIN_Z;
-      water[index].xvel = gaussianRandom(0.0, SIDE_SPLASH_VAR);
-      water[index].yvel = gaussianRandom(WATER_SPEED_MEAN, WATER_SPEED_VAR);
-      water[index].zvel = gaussianRandom(0.0, SIDE_SPLASH_VAR);
-      water[index].r = WATER_DROP_COLOUR_R;
-      water[index].g = WATER_DROP_COLOUR_G;
-      water[index].b = WATER_DROP_COLOUR_B;
-      water[index].alive = 1;
-      water[index].mass = WATER_DROP_MASS;
-    }
+    fountain.particles[index].xpos = FOUNTAIN_X;
+    fountain.particles[index].ypos = FOUNTAIN_Y;
+    fountain.particles[index].zpos = FOUNTAIN_Z;
+    fountain.particles[index].xvel = gaussianRandom(0.0, WATER_SIDE_SPLASH_VAR);
+    fountain.particles[index].yvel = gaussianRandom(WATER_SPEED_MEAN, WATER_SPEED_VAR);
+    fountain.particles[index].zvel = gaussianRandom(0.0, WATER_SIDE_SPLASH_VAR);
+    fountain.aliveParticles++;
+
   }
 
-  for (index = 0; index < noOfSmokeParticles; index++) 
+  for (index = smokeEmitter.aliveParticles; index < smokeEmitter.totalParticles; index++) 
   {
-    if (smoke[index].alive <= 0) 
-    {
-      smoke[index].xpos = gaussianRandom(SMOKE_EMITTER_X, SMOKE_EMITTER_SIZE);
-      smoke[index].ypos = SMOKE_EMITTER_Y;
-      smoke[index].zpos = gaussianRandom(SMOKE_EMITTER_Z, SMOKE_EMITTER_SIZE);
-      smoke[index].xvel = 0.0;
-      smoke[index].yvel = gaussianRandom(SMOKE_SPEED_MEAN, SMOKE_SPEED_VAR);
-      smoke[index].zvel = 0.0;
-      smoke[index].r = smokeR;
-      smoke[index].g = smokeG;
-      smoke[index].b = smokeB;
-      smoke[index].alive = (int) gaussianRandom(SMOKE_PARTICLE_LIFETIME_MEAN, SMOKE_PARTICLE_LIFETIME_STD);
-      smoke[index].mass = SMOKE_PARTICLE_MASS;
-    }
+    smokeEmitter.particles[index].xpos = gaussianRandom(SMOKE_EMITTER_X, SMOKE_EMITTER_SIZE);
+    smokeEmitter.particles[index].ypos = SMOKE_EMITTER_Y;
+    smokeEmitter.particles[index].zpos = gaussianRandom(SMOKE_EMITTER_Z, SMOKE_EMITTER_SIZE);
+    smokeEmitter.particles[index].xvel = 0.0;
+    smokeEmitter.particles[index].yvel = gaussianRandom(SMOKE_SPEED_MEAN, SMOKE_SPEED_VAR);
+    smokeEmitter.particles[index].zvel = 0.0;
+    smokeEmitter.particles[index].r = smokeEmitter.r;
+    smokeEmitter.particles[index].g = smokeEmitter.g;
+    smokeEmitter.particles[index].b = smokeEmitter.b;
+    smokeEmitter.aliveParticles++;
   }
-
 }
 
 
@@ -116,17 +122,17 @@ void drawParticles()
 
   glBegin (GL_POINTS);
   // Draw the fountain
-  for (index = 0; index < noOfWaterdrops; index++) 
+  for (index = 0; index < fountain.aliveParticles; index++) 
   {
-    glColor3f(water[index].r , water[index].g, water[index].b);
-    glVertex3f(water[index].xpos, water[index].ypos, water[index].zpos);
+    glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
+    glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
   }
 
   // Draw the smoke
-  for (index = 0; index < noOfSmokeParticles; index++) 
+  for (index = 0; index < smokeEmitter.aliveParticles; index++) 
   {
-    glColor3f(smoke[index].r , smoke[index].g, smoke[index].b);
-    glVertex3f(smoke[index].xpos, smoke[index].ypos, smoke[index].zpos);
+    glColor3f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b);
+    glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
   }
   glEnd();
 }
@@ -143,41 +149,52 @@ void progressTime()
   // Update each water particle parameters. Water particles maintain
   // their X and Z speeds while the vertical keeps being modified due to
   // gravity
-  for (index = 0; index < noOfWaterdrops; index++) 
+  for (index = 0; index < fountain.aliveParticles; index++) 
   {
-    water[index].xpos += water[index].xvel;
-    water[index].ypos += water[index].yvel;
-    water[index].zpos += water[index].zvel;
-    water[index].yvel += water[index].mass * gravity;
     // if particle falls below the fountain position it is killed
-    if (water[index].ypos < FOUNTAIN_Y || water[index].ypos > WINDOW_HEIGHT)
-      water[index].alive = 0;
+    if (fountain.particles[index].ypos < FOUNTAIN_Y || fountain.particles[index].ypos > WINDOW_HEIGHT) {
+      fountain.particles[index] = fountain.particles[fountain.aliveParticles - 1];
+      fountain.aliveParticles--;
+    }
+    else {
+      fountain.particles[index].xpos += fountain.particles[index].xvel;
+      fountain.particles[index].ypos += fountain.particles[index].yvel;
+      fountain.particles[index].zpos += fountain.particles[index].zvel;
+      fountain.particles[index].yvel += WATER_DROP_MASS * gravity;
+    }
   }
 
   // Update each smoke particle parameters. 
-  for (index = 0; index < noOfSmokeParticles; index++) 
+  for (index = 0; index < smokeEmitter.aliveParticles; index++) 
   {
-    smoke[index].xpos += smoke[index].xvel;
-    smoke[index].ypos += smoke[index].yvel;
-    smoke[index].zpos += smoke[index].zvel;
-    // Apart from minor gravitational force each particle has some chaotic 
-    // movement in every dimension
-    smoke[index].xvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, chaoticSpeed);
-    smoke[index].yvel += smoke[index].mass * gravity + gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, chaoticSpeed);
-    smoke[index].zvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, chaoticSpeed);
-    // Each particle fades away at slighlty different pace
-    shadeChange = gaussianRandom(SMOKE_SHADE_CHANGE_MEAN, SMOKE_SHADE_CHANGE_VAR);
-    smoke[index].r -= shadeChange;
-    smoke[index].g -= shadeChange;
-    smoke[index].b -= shadeChange;
-    // Count down to particle death, he he 
-    smoke[index].alive -= 1;
-    // If smoke hits the ground, make it crawl on it
-    if (smoke[index].ypos < SMOKE_EMITTER_Y)
-      smoke[index].ypos = SMOKE_EMITTER_Y;
+
+    if (smokeEmitter.particles[index].r <= SMOKE_DEATH_COLOUR_THRES && 
+      smokeEmitter.particles[index].g <= SMOKE_DEATH_COLOUR_THRES &&
+      smokeEmitter.particles[index].b <= SMOKE_DEATH_COLOUR_THRES) {
+      
+      smokeEmitter.particles[index] = smokeEmitter.particles[smokeEmitter.aliveParticles - 1];
+      smokeEmitter.aliveParticles--;
+    }
+    else {
+      smokeEmitter.particles[index].xpos += smokeEmitter.particles[index].xvel;
+      smokeEmitter.particles[index].ypos += smokeEmitter.particles[index].yvel;
+      // If smoke hits the ground, make it crawl on it
+      if (smokeEmitter.particles[index].ypos < SMOKE_EMITTER_Y)
+        smokeEmitter.particles[index].ypos = SMOKE_EMITTER_Y;
+      }
+      smokeEmitter.particles[index].zpos += smokeEmitter.particles[index].zvel;
+      // Apart from minor gravitational force each particle has some chaotic 
+      // movement in every dimension
+      smokeEmitter.particles[index].xvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed);
+      smokeEmitter.particles[index].yvel += SMOKE_PARTICLE_MASS * gravity + gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed * 2.0);
+      smokeEmitter.particles[index].zvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed);
+      // Each particle fades away at slighlty different pace
+      shadeChange = gaussianRandom(SMOKE_SHADE_CHANGE_MEAN, SMOKE_SHADE_CHANGE_VAR);
+      smokeEmitter.particles[index].r -= shadeChange;
+      smokeEmitter.particles[index].g -= shadeChange;
+      smokeEmitter.particles[index].b -= shadeChange;
   }
 }
-
 
 
 /*********************************************************************
@@ -188,43 +205,39 @@ void keyboard(unsigned char key, int x, int y)
   switch(key) 
   {
     case 27: exit(0); break;
-    case 'f': gravity += 0.01; break;
-    case 'F': gravity -= 0.01; break; 
-    case 'c': if (chaoticSpeed - 0.001 > 0.0)
-                chaoticSpeed -= 0.001;
+    case 'f': gravity *= DECREMENT_MULTIPLIER; break;
+    case 'F': gravity *= INCREMENT_MULTIPLIER; break; 
+    case 'c': smokeEmitter.chaoticSpeed *= 0.9;
               break; 
-    case 'C': chaoticSpeed += 0.001; break; 
-    case 'w': if (noOfWaterdrops / 2 >= 1)
-                noOfWaterdrops /= 2; 
+    case 'C': smokeEmitter.chaoticSpeed *= INCREMENT_MULTIPLIER; break; 
+    case 'w': if (fountain.totalParticles / 2 >= 1)
+                fountain.totalParticles /= 2; 
               break;
-    case 'W': noOfWaterdrops *= 2; break;
-    case 's': if (noOfSmokeParticles / 2 >= 1)
-                noOfSmokeParticles /= 2; 
+    case 'W': fountain.totalParticles *= 2; break;
+    case 's': if (smokeEmitter.totalParticles / 2 >= 1)
+                smokeEmitter.totalParticles /= 2; 
               break;
-    case 'S': noOfSmokeParticles *= 2; break;
-    case 'r': if (smokeR - 0.05 >= 0.0)
-                smokeR -= 0.05; 
+    case 'S': smokeEmitter.totalParticles *= 2; break;
+    case 'r': if (smokeEmitter.r - SMOKE_COLOUR_CHANGE >= 0.0)
+                smokeEmitter.r -= SMOKE_COLOUR_CHANGE; 
               break;
-    case 'R': if (smokeR + 0.05 <= 1.0)
-                smokeR += 0.05; 
+    case 'R': if (smokeEmitter.r + SMOKE_COLOUR_CHANGE <= 1.0)
+                smokeEmitter.r += SMOKE_COLOUR_CHANGE; 
               break;
-    case 'g': if (smokeG - 0.05 >= 0.0)
-                smokeG -= 0.05; 
+    case 'g': if (smokeEmitter.g - SMOKE_COLOUR_CHANGE >= 0.0)
+                smokeEmitter.g -= SMOKE_COLOUR_CHANGE; 
               break;
-    case 'G': if (smokeG + 0.05 <= 1.0)
-                smokeG += 0.05; 
+    case 'G': if (smokeEmitter.g + SMOKE_COLOUR_CHANGE <= 1.0)
+                smokeEmitter.g += SMOKE_COLOUR_CHANGE; 
               break;
-    case 'b': if (smokeB - 0.05 >= 0.0)
-                smokeB -= 0.05; 
+    case 'b': if (smokeEmitter.b - SMOKE_COLOUR_CHANGE >= 0.0)
+                smokeEmitter.b -= SMOKE_COLOUR_CHANGE; 
               break;
-    case 'B': if (smokeB - 0.05 >= 0.0)
-                smokeB -= 0.05; 
+    case 'B': if (smokeEmitter.b - SMOKE_COLOUR_CHANGE >= 0.0)
+                smokeEmitter.b -= SMOKE_COLOUR_CHANGE; 
               break;
     case 'e': gravity = DEFAULT_GRAVITY;
-              noOfWaterdrops = DEFAULT_NO_OF_WATERDROPS;
-              noOfSmokeParticles = DEFAULT_NO_OF_SMOKE_PARTICLES;
-              chaoticSpeed = SMOKE_CHAOS_SPEED_VAR;
-              smokeR = smokeG = smokeB = SMOKE_SHADE;
+              initParticleSystem();
               break;
 
   }
@@ -315,8 +328,25 @@ void calculateFPS()
   {
     fps = frameCount / (timeInterval / 1000.0f);  //  calculate the number of frames per second
     previousTime = currentTime;                   //  Set time
-    frameCount = 0;                               //  Reset frame count       
+    frameCount = 0;                               //  Reset frame count 
   }
+}
+
+
+/*********************************************************************
+* Display important characteristics of the simulation
+**********************************************************************/
+void displayData(void) 
+{
+  glColor3f(1.0, 1.0, 1.0);
+  sprintf(stringBuffer, "FPS: %.2f", fps);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y, stringBuffer);
+  sprintf(stringBuffer, "Water particles: %d", fountain.totalParticles);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 1 * 12, stringBuffer);
+  sprintf(stringBuffer, "Smoke particles: %d", smokeEmitter.totalParticles);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 2 * 12, stringBuffer);
+  sprintf(stringBuffer, "Gravity: %.2f", gravity);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 3 * 12, stringBuffer);
 }
 
 
