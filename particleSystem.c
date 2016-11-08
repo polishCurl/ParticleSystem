@@ -7,7 +7,7 @@
 *               Simulation of a fountain and smoke 
 **********************************************************************/
 #include "particleSystem.h"
-
+int textureId;
 
 /*********************************************************************
 * Main method
@@ -27,6 +27,8 @@ int main(int argc, char *argv[])
 **********************************************************************/
 void initGraphics(int argc, char *argv[])
 {
+  int index;
+
   glutInit(&argc, argv);
   glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
   glutInitWindowPosition(100, 100);
@@ -37,7 +39,25 @@ void initGraphics(int argc, char *argv[])
   glutReshapeFunc(reshape);
   glEnable(GL_POINT_SMOOTH);
   glPointSize(POINT_SIZE);
-  makeAxes();
+
+  #if RENDERING_METHOD == 2
+  
+  glPointSize(POINT_SIZE_TEXTURE);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_BLEND);
+  glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+  glEnable(GL_TEXTURE_2D);
+  glEnable(GL_POINT_SPRITE);
+
+  for (index = 0; index < SMOKE_TEXTURE_NUMBER; index++) {
+    sprintf(stringBuffer, "Textures/smoke%d.png", index);
+    smokeEmitter.textures[index] = SOIL_load_OGL_texture(stringBuffer, 
+                                                         SOIL_LOAD_RGBA, 
+                                                         SOIL_CREATE_NEW_ID, 
+                                                         SOIL_FLAG_MIPMAPS);
+  }
+  #endif
 }
 
 
@@ -52,7 +72,6 @@ void display()
             0.0, 1.0, 0.0);
   
   glClear(GL_COLOR_BUFFER_BIT);  // Clear the screen and depth buffer
-  if(axisEnabled) glCallList(axisList);    // If enabled, draw coordinate axis
   spawnParticles();
   drawParticles();
   progressTime();
@@ -108,6 +127,9 @@ void spawnParticles()
     smokeEmitter.particles[index].r = smokeEmitter.r;
     smokeEmitter.particles[index].g = smokeEmitter.g;
     smokeEmitter.particles[index].b = smokeEmitter.b;
+    #if RENDERING_METHOD == 2
+      smokeEmitter.particles[index].alpha = gaussianRandom(0.3, 0.1);
+    #endif
     smokeEmitter.aliveParticles++;
   }
 }
@@ -119,6 +141,7 @@ void spawnParticles()
 void drawParticles() 
 {
   int index;
+  int textureID;
 
   /*-----------------------------------------------------------------*/
   #if RENDERING_METHOD == 1
@@ -139,7 +162,7 @@ void drawParticles()
 
 
   /*-----------------------------------------------------------------*/
-  #elif RENDERING_METHOD == 2
+  #else
 
   glBegin(GL_LINES);
   // Draw the fountain
@@ -151,17 +174,27 @@ void drawParticles()
                fountain.particles[index].ypos + fountain.particles[index].yvel, 
                fountain.particles[index].zpos + fountain.particles[index].zvel);
   }
+  glEnd();
 
+
+
+  
   // Draw the smoke
+  glEnable(GL_POINT_SPRITE);
+  glEnable(GL_TEXTURE_2D);
   for (index = 0; index < smokeEmitter.aliveParticles; index++) 
   {
-    glColor3f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b);
+    glBindTexture(GL_TEXTURE_2D, smokeEmitter.textures[index % SMOKE_TEXTURE_NUMBER]);
+    glBegin (GL_POINTS);
+    glColor4f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b, smokeEmitter.particles[index].alpha);
     glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
-    glVertex3f(smokeEmitter.particles[index].xpos + smokeEmitter.particles[index].xvel, 
-               smokeEmitter.particles[index].ypos + smokeEmitter.particles[index].yvel, 
-               smokeEmitter.particles[index].zpos + smokeEmitter.particles[index].zvel);
+    glEnd();
+
   }
-  glEnd();
+  glDisable(GL_TEXTURE_2D);
+  glDisable(GL_POINT_SPRITE);
+  
+  
   #endif
 
 }
@@ -223,6 +256,7 @@ void progressTime()
       smokeEmitter.particles[index].r -= shadeChange;
       smokeEmitter.particles[index].g -= shadeChange;
       smokeEmitter.particles[index].b -= shadeChange;
+      smokeEmitter.particles[index].alpha -= SMOKE_ALPHA_CHANGE;
     }
   }
 }
@@ -236,11 +270,11 @@ void keyboard(unsigned char key, int x, int y)
   switch(key) 
   {
     case 27: exit(0); break;
-    case 'f': gravity *= DECREMENT_MULTIPLIER; break;
-    case 'F': gravity *= INCREMENT_MULTIPLIER; break; 
-    case 'c': smokeEmitter.chaoticSpeed *= 0.9;
+    case 'f': gravity *= DECREASE_VAL; break;
+    case 'F': gravity *= INCREASE_VAL; break; 
+    case 'c': smokeEmitter.chaoticSpeed *= DECREASE_VAL;
               break; 
-    case 'C': smokeEmitter.chaoticSpeed *= INCREMENT_MULTIPLIER; break; 
+    case 'C': smokeEmitter.chaoticSpeed *= INCREASE_VAL; break; 
     case 'w': if (fountain.totalParticles / 2 >= 1)
                 fountain.totalParticles /= 2; 
               break;
@@ -264,8 +298,8 @@ void keyboard(unsigned char key, int x, int y)
     case 'b': if (smokeEmitter.b - SMOKE_COLOUR_CHANGE >= 0.0)
                 smokeEmitter.b -= SMOKE_COLOUR_CHANGE; 
               break;
-    case 'B': if (smokeEmitter.b - SMOKE_COLOUR_CHANGE >= 0.0)
-                smokeEmitter.b -= SMOKE_COLOUR_CHANGE; 
+    case 'B': if (smokeEmitter.b + SMOKE_COLOUR_CHANGE <= 1.0)
+                smokeEmitter.b += SMOKE_COLOUR_CHANGE; 
               break;
     case 'e': gravity = DEFAULT_GRAVITY;
               initParticleSystem();
@@ -287,29 +321,6 @@ void reshape(int width, int height)
   glLoadIdentity();
   gluPerspective(60, (GLfloat)width / (GLfloat)height, 1.0, 10000.0);
   glMatrixMode(GL_MODELVIEW);
-}
-
-
-/*********************************************************************
-* Create a display list for drawing coord axis
-**********************************************************************/
-void makeAxes() 
-{
-  axisList = glGenLists(1);
-  glNewList(axisList, GL_COMPILE);
-      glLineWidth(2.0);
-      glBegin(GL_LINES);
-      glColor3f(1.0, 0.0, 0.0);       // X axis - red
-      glVertex3f(0.0, 0.0, 0.0);
-      glVertex3f(AXIS_SIZE, 0.0, 0.0);
-      glColor3f(0.0, 1.0, 0.0);       // Y axis - green
-      glVertex3f(0.0, 0.0, 0.0);
-      glVertex3f(0.0, AXIS_SIZE, 0.0);
-      glColor3f(0.0, 0.0, 1.0);       // Z axis - blue
-      glVertex3f(0.0, 0.0, 0.0);
-      glVertex3f(0.0, 0.0, AXIS_SIZE);
-    glEnd();
-  glEndList();
 }
 
 
@@ -358,9 +369,11 @@ void calculateFPS()
 
   if(timeInterval > 1000)
   {
-    fps = frameCount / (timeInterval / 1000.0f);  //  calculate the number of frames per second
-    previousTime = currentTime;                   //  Set time
-    frameCount = 0;                               //  Reset frame count 
+    // Calculate the number of frames per second, set the time and reset
+    // the frame count
+    fps = frameCount / (timeInterval / 1000.0f);  
+    previousTime = currentTime;                   
+    frameCount = 0;                         
   }
 }
 
@@ -374,11 +387,11 @@ void displayData(void)
   sprintf(stringBuffer, "FPS: %.2f", fps);
   drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y, stringBuffer);
   sprintf(stringBuffer, "Water particles: %d", fountain.totalParticles);
-  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 1 * 12, stringBuffer);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 1 * FONT_HEIGHT, stringBuffer);
   sprintf(stringBuffer, "Smoke particles: %d", smokeEmitter.totalParticles);
-  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 2 * 12, stringBuffer);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 2 * FONT_HEIGHT, stringBuffer);
   sprintf(stringBuffer, "Gravity: %.2f", gravity);
-  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 3 * 12, stringBuffer);
+  drawString(GLUT_BITMAP_HELVETICA_12, TEXT_X, TEXT_Y - 3 * FONT_HEIGHT, stringBuffer);
 }
 
 

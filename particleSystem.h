@@ -2,8 +2,8 @@
 * File:         particleSystem.h
 * Author:       Krzysztof Koch  
 * Date created: 04/10/2016
-* Last mod:     04/10/2016
-* Brief:        COMP37111 Assignment, include file for particleSystem.c
+* Last mod:     09/11/2016
+* Brief:        Include file for particleSystem.c
 **********************************************************************/
 
 
@@ -16,6 +16,8 @@
 #include <time.h>
 #include <math.h>
 #include <float.h>
+#include "SOIL.h"
+
 
 #ifdef MACOSX
   #include <GLUT/glut.h>
@@ -23,17 +25,19 @@
   #include <GL/glut.h>
 #endif
 
-// Display list for coordinate axis 
-GLuint axisList;
+
+
+/*********************************************************************
+* Rendering method used
+**********************************************************************/
+#define RENDERING_METHOD 2
 
 
 /*********************************************************************
 * Simulation parameters
 **********************************************************************/
-
-// Constant parameters
-#define POINT_SIZE 3					// radius of point in pixels
-#define RENDERING_METHOD 2
+#define POINT_SIZE_TEXTURE 100			// Point size for textured rendering
+#define POINT_SIZE 3					// Point size (non-texture)
 #define EYE_X 0.0						// camera position
 #define EYE_Y 0.0
 #define EYE_Z 500.0
@@ -43,17 +47,18 @@ GLuint axisList;
 #define WINDOW_WIDTH 1200				// window size
 #define WINDOW_HEIGHT 800
 #define DEFAULT_GRAVITY -9.81;			// default gravitational acceleration
-#define AXIS_SIZE 400
 #define MAX_NO_OF_PARTICLES 2000000		// maximum and default number of 
-#define DEFAULT_NO_OF_PARTICLES 1000 	// particles in each particle syste,
-#define INCREMENT_MULTIPLIER 1.1
-#define DECREMENT_MULTIPLIER 0.9
-#define TEXT_X -420
+#define DEFAULT_NO_OF_PARTICLES 1000 	// particles in each particle system
+#define INCREASE_VAL 1.1				// multipliers for increasing and decreasing
+#define DECREASE_VAL 0.9 				// simulation parameter values
+#define TEXT_X -420						// starting position of text to draw
 #define TEXT_Y 270
+#define FONT_HEIGHT 12					// Font height (used for drawing multiple lines)
 
 
-// Variable parameters			     
-int axisEnabled = 0;
+/*********************************************************************
+* Modificable simulation parameters
+**********************************************************************/		     
 double gravity = DEFAULT_GRAVITY;
 
 
@@ -72,7 +77,7 @@ double gravity = DEFAULT_GRAVITY;
 #define WATER_DROP_COLOUR_R 0.36		// water particle RGB colour 
 #define WATER_DROP_COLOUR_G 0.71
 #define WATER_DROP_COLOUR_B 1.0
-#define WATER_DROP_MASS 0.03			// particle mass, affects the impact of gravity
+#define WATER_DROP_MASS 0.03			// water particle mass, controls the impact of gravity
 
 // Waterdrop
 typedef struct {
@@ -104,17 +109,19 @@ typedef struct {
 #define SMOKE_CHAOS_SPEED_VAR 0.002		
 #define SMOKE_SHADE 0.8					// initial colour of smoke (gray)
 #define SMOKE_SHADE_CHANGE_MEAN 0.0015	// rate of smoke shade change
-#define SMOKE_SHADE_CHANGE_VAR 0.007		
+#define SMOKE_SHADE_CHANGE_VAR 0.007	
+#define SMOKE_ALPHA_CHANGE 0.0001			
 #define SMOKE_PARTICLE_MASS 0.00007		// affects the impact of gravity
-#define SMOKE_COLOUR_CHANGE 0.05
-#define SMOKE_DEATH_COLOUR_THRES 0.00001
+#define SMOKE_COLOUR_CHANGE 0.05 		// how quickly colour is changed due to key presses
+#define SMOKE_DEATH_COLOUR_THRES 0.000001
+#define SMOKE_TEXTURE_NUMBER 25			// number of different smoke textures that can be used
+
 
 // Smoke particle 
 typedef struct {
   GLdouble xpos, ypos, zpos;   			// position
   GLdouble xvel, yvel, zvel;   			// velocity
-  GLdouble r, g, b;   					// color
-  int alive;        	   				// 0 - dead, nonzero - alive
+  GLdouble r, g, b, alpha;   			// current particle colour and aplha value
 } SmokeParticle;
 
 // Smoke 
@@ -126,6 +133,8 @@ typedef struct {
 	double g;
 	double b;
 	double chaoticSpeed;				// speed of chaotic movement
+	int textures[SMOKE_TEXTURE_NUMBER];	// array of smoke texture IDs
+	int textureCounter;
 } Smoke;
 
 
@@ -152,7 +161,8 @@ Smoke smokeEmitter;
 
 
 /*********************************************************************
-* Second random number generated using Box-Muller transform
+* Second random number generated using Box-Muller transform (used for 
+* improved performance)
 **********************************************************************/
 double boxMuller2Rand;
 
@@ -170,7 +180,6 @@ void progressTime(void); 				// update particle parameters according to the laws
 void display(void); 					// openGL callback function
 void keyboard(unsigned char, int, int); // keyboard callback function
 void reshape(int, int); 				// window reshape callback function
-void makeAxes(void);					// create a display list for drawing coord axis 
 void initGraphics(int, char *argv[]); 	// initialisation function
 void calculateFPS(void); 				// calculate the number of frames per second
 void drawString (void*, float, float, char*); // draw string on screen
