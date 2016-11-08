@@ -33,6 +33,7 @@ GLuint axisList;
 
 // Constant parameters
 #define POINT_SIZE 3					// radius of point in pixels
+#define RENDERING_METHOD 2
 #define EYE_X 0.0						// camera position
 #define EYE_Y 0.0
 #define EYE_Z 500.0
@@ -96,7 +97,7 @@ typedef struct {
 #define SMOKE_EMITTER_X 220.0			// smoke emitter location
 #define SMOKE_EMITTER_Y -240.0
 #define SMOKE_EMITTER_Z 0.0
-#define SMOKE_EMITTER_SIZE 10.0			// variance of possible particle spawn locations
+#define SMOKE_EMITTER_SIZE 15.0			// variance of possible particle spawn locations
 #define SMOKE_SPEED_MEAN 0.7			// starting vertical smoke speed		
 #define SMOKE_SPEED_VAR 0.1				
 #define SMOKE_CHAOS_SPEED_MEAN 0.0		// velocity of particle chaotic movement
@@ -148,6 +149,12 @@ char stringBuffer[50];
 **********************************************************************/
 Water fountain;
 Smoke smokeEmitter;
+
+
+/*********************************************************************
+* Second random number generated using Box-Muller transform
+**********************************************************************/
+double boxMuller2Rand;
 
 
 

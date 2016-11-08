@@ -91,17 +91,17 @@ void spawnParticles()
     fountain.particles[index].ypos = FOUNTAIN_Y;
     fountain.particles[index].zpos = FOUNTAIN_Z;
     fountain.particles[index].xvel = gaussianRandom(0.0, WATER_SIDE_SPLASH_VAR);
+    fountain.particles[index].zvel = boxMuller2Rand;
     fountain.particles[index].yvel = gaussianRandom(WATER_SPEED_MEAN, WATER_SPEED_VAR);
-    fountain.particles[index].zvel = gaussianRandom(0.0, WATER_SIDE_SPLASH_VAR);
     fountain.aliveParticles++;
 
   }
 
   for (index = smokeEmitter.aliveParticles; index < smokeEmitter.totalParticles; index++) 
   {
-    smokeEmitter.particles[index].xpos = gaussianRandom(SMOKE_EMITTER_X, SMOKE_EMITTER_SIZE);
+    smokeEmitter.particles[index].xpos = uniformRandom(SMOKE_EMITTER_SIZE) + SMOKE_EMITTER_X;
     smokeEmitter.particles[index].ypos = SMOKE_EMITTER_Y;
-    smokeEmitter.particles[index].zpos = gaussianRandom(SMOKE_EMITTER_Z, SMOKE_EMITTER_SIZE);
+    smokeEmitter.particles[index].zpos = uniformRandom(SMOKE_EMITTER_SIZE) + SMOKE_EMITTER_Z;
     smokeEmitter.particles[index].xvel = 0.0;
     smokeEmitter.particles[index].yvel = gaussianRandom(SMOKE_SPEED_MEAN, SMOKE_SPEED_VAR);
     smokeEmitter.particles[index].zvel = 0.0;
@@ -120,13 +120,14 @@ void drawParticles()
 {
   int index;
 
+  /*-----------------------------------------------------------------*/
+  #if RENDERING_METHOD == 1
+
   glBegin (GL_POINTS);
   // Draw the fountain
+  glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
   for (index = 0; index < fountain.aliveParticles; index++) 
-  {
-    glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
     glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
-  }
 
   // Draw the smoke
   for (index = 0; index < smokeEmitter.aliveParticles; index++) 
@@ -135,6 +136,34 @@ void drawParticles()
     glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
   }
   glEnd();
+
+
+  /*-----------------------------------------------------------------*/
+  #elif RENDERING_METHOD == 2
+
+  glBegin(GL_LINES);
+  // Draw the fountain
+  glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
+  for (index = 0; index < fountain.aliveParticles; index++) 
+  {
+    glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
+    glVertex3f(fountain.particles[index].xpos + fountain.particles[index].xvel, 
+               fountain.particles[index].ypos + fountain.particles[index].yvel, 
+               fountain.particles[index].zpos + fountain.particles[index].zvel);
+  }
+
+  // Draw the smoke
+  for (index = 0; index < smokeEmitter.aliveParticles; index++) 
+  {
+    glColor3f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b);
+    glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
+    glVertex3f(smokeEmitter.particles[index].xpos + smokeEmitter.particles[index].xvel, 
+               smokeEmitter.particles[index].ypos + smokeEmitter.particles[index].yvel, 
+               smokeEmitter.particles[index].zpos + smokeEmitter.particles[index].zvel);
+  }
+  glEnd();
+  #endif
+
 }
 
 
@@ -156,12 +185,11 @@ void progressTime()
       fountain.particles[index] = fountain.particles[fountain.aliveParticles - 1];
       fountain.aliveParticles--;
     }
-    else {
-      fountain.particles[index].xpos += fountain.particles[index].xvel;
-      fountain.particles[index].ypos += fountain.particles[index].yvel;
-      fountain.particles[index].zpos += fountain.particles[index].zvel;
-      fountain.particles[index].yvel += WATER_DROP_MASS * gravity;
-    }
+    
+    fountain.particles[index].xpos += fountain.particles[index].xvel;
+    fountain.particles[index].ypos += fountain.particles[index].yvel;
+    fountain.particles[index].zpos += fountain.particles[index].zvel;
+    fountain.particles[index].yvel += WATER_DROP_MASS * gravity;
   }
 
   // Update each smoke particle parameters. 
@@ -171,28 +199,31 @@ void progressTime()
     if (smokeEmitter.particles[index].r <= SMOKE_DEATH_COLOUR_THRES && 
       smokeEmitter.particles[index].g <= SMOKE_DEATH_COLOUR_THRES &&
       smokeEmitter.particles[index].b <= SMOKE_DEATH_COLOUR_THRES) {
-      
+
       smokeEmitter.particles[index] = smokeEmitter.particles[smokeEmitter.aliveParticles - 1];
       smokeEmitter.aliveParticles--;
     }
     else {
+    
       smokeEmitter.particles[index].xpos += smokeEmitter.particles[index].xvel;
       smokeEmitter.particles[index].ypos += smokeEmitter.particles[index].yvel;
       // If smoke hits the ground, make it crawl on it
       if (smokeEmitter.particles[index].ypos < SMOKE_EMITTER_Y)
         smokeEmitter.particles[index].ypos = SMOKE_EMITTER_Y;
-      }
+      
       smokeEmitter.particles[index].zpos += smokeEmitter.particles[index].zvel;
       // Apart from minor gravitational force each particle has some chaotic 
       // movement in every dimension
       smokeEmitter.particles[index].xvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed);
+      smokeEmitter.particles[index].zvel += boxMuller2Rand;
       smokeEmitter.particles[index].yvel += SMOKE_PARTICLE_MASS * gravity + gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed * 2.0);
-      smokeEmitter.particles[index].zvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed);
+      
       // Each particle fades away at slighlty different pace
       shadeChange = gaussianRandom(SMOKE_SHADE_CHANGE_MEAN, SMOKE_SHADE_CHANGE_VAR);
       smokeEmitter.particles[index].r -= shadeChange;
       smokeEmitter.particles[index].g -= shadeChange;
       smokeEmitter.particles[index].b -= shadeChange;
+    }
   }
 }
 
@@ -293,8 +324,8 @@ double uniformRandom(double range)
 
 /*********************************************************************
 * Return gaussian random variable with mean "mean" and standard 
-* deviation "stdDev". Uses to uniform random variables for generation of
-* a normally distributed one
+* deviation "stdDev". Uses two uniform random variables for generation of
+* a normally distributed one (Box-Muller transform)
 **********************************************************************/
 double gaussianRandom(double mean, double stdDev)
 {
@@ -307,6 +338,7 @@ double gaussianRandom(double mean, double stdDev)
   } while ( w >= 1.0 );
 
   w = sqrt((-2.0 * log(w)) / w);
+  boxMuller2Rand = uniform2 * w * stdDev + mean;
   return uniform1 * w * stdDev + mean;
 }
 
