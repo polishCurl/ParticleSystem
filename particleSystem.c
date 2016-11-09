@@ -1,17 +1,28 @@
-/*********************************************************************
+/******************************************************************************
 * File:         particleSystem.c
+* Brief:        Particle system implementation - fountain and smoke
 * Author:       Krzysztof Koch  
 * Date created: 04/10/2016
 * Last mod:     04/10/2016
-* Brief:        COMP37111 Assignment, particle system implementation.
-*               Simulation of a fountain and smoke 
-**********************************************************************/
+*
+* Note:         
+* Two particle systems implemented, water fountain and smoke emitter. Live particles
+* are kept at the beginning of the array which stores them all. There are two 
+* separate data structures for water and smoke, as well as two for smoke and water
+* particles. It's because of different properties they have.
+*
+* Two rendering options are available (by changing the vale of RENDERING_METHOD)
+*   1. Particles are drawn as points
+*   2. Water movement is drawn using lines, while smoke is rendered using point
+*   textures.
+*       
+******************************************************************************/
 #include "particleSystem.h"
-int textureId;
 
-/*********************************************************************
+
+/******************************************************************************
 * Main method
-**********************************************************************/
+******************************************************************************/
 int main(int argc, char *argv[])
 {
   double f;
@@ -22,48 +33,57 @@ int main(int argc, char *argv[])
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Initialisation function
-**********************************************************************/
+******************************************************************************/
 void initGraphics(int argc, char *argv[])
 {
   int index;
-
   glutInit(&argc, argv);
-  glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+  glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);  
   glutInitWindowPosition(100, 100);
   glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH);
   glutCreateWindow("COMP37111 Fountain");
   glutDisplayFunc(display);
   glutKeyboardFunc(keyboard);
   glutReshapeFunc(reshape);
+
+  // Render points as circles and make this span a few pixels instead of one
   glEnable(GL_POINT_SMOOTH);
   glPointSize(POINT_SIZE);
 
+  /*--------------------------------------------------------------------------
+  * Setup for the smoke rendering method using textures
+  *-------------------------------------------------------------------------*/
   #if RENDERING_METHOD == 2
-  
-  glPointSize(POINT_SIZE_TEXTURE);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glEnable(GL_BLEND);
-  glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
-  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-  glEnable(GL_TEXTURE_2D);
-  glEnable(GL_POINT_SPRITE);
 
-  for (index = 0; index < SMOKE_TEXTURE_NUMBER; index++) {
-    sprintf(stringBuffer, "Textures/smoke%d.png", index);
-    smokeEmitter.textures[index] = SOIL_load_OGL_texture(stringBuffer, 
-                                                         SOIL_LOAD_RGBA, 
-                                                         SOIL_CREATE_NEW_ID, 
-                                                         SOIL_FLAG_MIPMAPS);
-  }
+    // Make points very large (in pixel terms), set the blending funcion
+    glPointSize(POINT_SIZE_TEXTURE);
+    // Render antialiased points and lines in arbitrary order, pixel aithmetic
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    //  Specify the drawing mode for point sprites
+    glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    // Enable point sprites and 2D textures
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_POINT_SPRITE);
+
+    // Load textures one by one
+    for (index = 0; index < SMOKE_TEXTURE_NUMBER; index++) {
+      sprintf(stringBuffer, "Textures/smoke%d.png", index);
+      smokeEmitter.textures[index] = SOIL_load_OGL_texture(stringBuffer, 
+                                                           SOIL_LOAD_RGBA, 
+                                                           SOIL_CREATE_NEW_ID, 
+                                                           SOIL_FLAG_MIPMAPS);
+    }
   #endif
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Callback function, called whenever graphics should be redrawn
-**********************************************************************/
+******************************************************************************/
 void display()
 {
   glLoadIdentity();
@@ -71,20 +91,20 @@ void display()
             CENTER_X, CENTER_Y, CENTER_Z,
             0.0, 1.0, 0.0);
   
-  glClear(GL_COLOR_BUFFER_BIT);  // Clear the screen and depth buffer
-  spawnParticles();
-  drawParticles();
-  progressTime();
-  glutPostRedisplay();
-  calculateFPS();
-  displayData();
-  glutSwapBuffers();                        // Double buffering in place
+  glClear(GL_COLOR_BUFFER_BIT);         // Clear the screen and depth buffer
+  spawnParticles();                     // Generate new particles to replace dead ones
+  drawParticles();                      // Render particles
+  progressTime();                       // Update particle coordinates and properties
+  glutPostRedisplay();                  // Mark the current window to be redisplayed
+  calculateFPS();                       // Calculate the frame rate
+  displayData();                        // Display simulation parameter values
+  glutSwapBuffers();                    // Double buffering in place
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Initialise the particle systems
-**********************************************************************/
+******************************************************************************/
 void initParticleSystem()
 {
   // Set the initial values of particle system parameters
@@ -97,13 +117,18 @@ void initParticleSystem()
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Spawn particles
-**********************************************************************/
+******************************************************************************/
 void spawnParticles() 
 {
+  // Dead particles are stored at the end of array, thus no need for 'alive'
+  // parameter for each particle
   int index;
 
+  // Spawn water particles with different horizontal speeds (side splash) and 
+  // different vertical speeds. Particles are generated from a single point being
+  // the fountain location
   for (index = fountain.aliveParticles; index < fountain.totalParticles; index++) 
   {
     fountain.particles[index].xpos = FOUNTAIN_X;
@@ -116,6 +141,9 @@ void spawnParticles()
 
   }
 
+  // Spawn smoke particles with only vertical speed being nonzero. Set their initial colour
+  // according to the current value of colour parameters (with some random noise). Particles 
+  // are generated from a square area with linear distribution. 
   for (index = smokeEmitter.aliveParticles; index < smokeEmitter.totalParticles; index++) 
   {
     smokeEmitter.particles[index].xpos = uniformRandom(SMOKE_EMITTER_SIZE) + SMOKE_EMITTER_X;
@@ -124,85 +152,90 @@ void spawnParticles()
     smokeEmitter.particles[index].xvel = 0.0;
     smokeEmitter.particles[index].yvel = gaussianRandom(SMOKE_SPEED_MEAN, SMOKE_SPEED_VAR);
     smokeEmitter.particles[index].zvel = 0.0;
-    smokeEmitter.particles[index].r = smokeEmitter.r;
-    smokeEmitter.particles[index].g = smokeEmitter.g;
-    smokeEmitter.particles[index].b = smokeEmitter.b;
-    #if RENDERING_METHOD == 2
-      smokeEmitter.particles[index].alpha = gaussianRandom(0.3, 0.1);
-    #endif
+    smokeEmitter.particles[index].r = gaussianRandom(smokeEmitter.r, SMOKE_SHADE_INIT_VAR);
+    smokeEmitter.particles[index].g = gaussianRandom(smokeEmitter.g, SMOKE_SHADE_INIT_VAR);
+    smokeEmitter.particles[index].b = gaussianRandom(smokeEmitter.b, SMOKE_SHADE_INIT_VAR);
     smokeEmitter.aliveParticles++;
+    
+    /*--------------------------------------------------------------------------
+    * If textures are used initialise the alpha value
+    *-------------------------------------------------------------------------*/
+    #if RENDERING_METHOD == 2
+      smokeEmitter.particles[index].alpha = gaussianRandom(SMOKE_INIT_ALHPA_MEAN, SMOKE_INIT_ALPHA_VAR);
+    #endif
+    
   }
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Render the particles
-**********************************************************************/
+******************************************************************************/
 void drawParticles() 
 {
   int index;
   int textureID;
 
-  /*-----------------------------------------------------------------*/
+  /*--------------------------------------------------------------------------
+  * Particles as points
+  *-------------------------------------------------------------------------*/
   #if RENDERING_METHOD == 1
 
-  glBegin (GL_POINTS);
-  // Draw the fountain
-  glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
-  for (index = 0; index < fountain.aliveParticles; index++) 
-    glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
-
-  // Draw the smoke
-  for (index = 0; index < smokeEmitter.aliveParticles; index++) 
-  {
-    glColor3f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b);
-    glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
-  }
-  glEnd();
-
-
-  /*-----------------------------------------------------------------*/
-  #else
-
-  glBegin(GL_LINES);
-  // Draw the fountain
-  glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
-  for (index = 0; index < fountain.aliveParticles; index++) 
-  {
-    glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
-    glVertex3f(fountain.particles[index].xpos + fountain.particles[index].xvel, 
-               fountain.particles[index].ypos + fountain.particles[index].yvel, 
-               fountain.particles[index].zpos + fountain.particles[index].zvel);
-  }
-  glEnd();
-
-
-
-  
-  // Draw the smoke
-  glEnable(GL_POINT_SPRITE);
-  glEnable(GL_TEXTURE_2D);
-  for (index = 0; index < smokeEmitter.aliveParticles; index++) 
-  {
-    glBindTexture(GL_TEXTURE_2D, smokeEmitter.textures[index % SMOKE_TEXTURE_NUMBER]);
+    // Draw the fountain
     glBegin (GL_POINTS);
-    glColor4f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b, smokeEmitter.particles[index].alpha);
-    glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
+    glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
+    for (index = 0; index < fountain.aliveParticles; index++) 
+      glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
+
+    // Draw the smoke
+    for (index = 0; index < smokeEmitter.aliveParticles; index++) 
+    {
+      glColor3f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b);
+      glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
+    }
     glEnd();
 
-  }
-  glDisable(GL_TEXTURE_2D);
-  glDisable(GL_POINT_SPRITE);
-  
-  
-  #endif
+  /*--------------------------------------------------------------------------
+  * Water as lines, smoke as point textures
+  *-------------------------------------------------------------------------*/
+  #else
 
+    // Draw the fountain, join the current position and the future one (determined
+    // by velocity vector by a line)
+    glBegin(GL_LINES);
+    glColor3f(WATER_DROP_COLOUR_R , WATER_DROP_COLOUR_G, WATER_DROP_COLOUR_B);
+    for (index = 0; index < fountain.aliveParticles; index++) 
+    {
+      glVertex3f(fountain.particles[index].xpos, fountain.particles[index].ypos, fountain.particles[index].zpos);
+      glVertex3f(fountain.particles[index].xpos + fountain.particles[index].xvel, 
+                 fountain.particles[index].ypos + fountain.particles[index].yvel, 
+                 fountain.particles[index].zpos + fountain.particles[index].zvel);
+    }
+    glEnd();
+
+
+    // Draw the smoke. Load the texture depending on particle index, and draw the 
+    // texture with alpha blending
+    glEnable(GL_POINT_SPRITE);
+    glEnable(GL_TEXTURE_2D);
+    for (index = 0; index < smokeEmitter.aliveParticles; index++) 
+    {
+      glBindTexture(GL_TEXTURE_2D, smokeEmitter.textures[index % SMOKE_TEXTURE_NUMBER]);
+      glBegin (GL_POINTS);
+      glColor4f(smokeEmitter.particles[index].r, smokeEmitter.particles[index].g, smokeEmitter.particles[index].b, smokeEmitter.particles[index].alpha);
+      glVertex3f(smokeEmitter.particles[index].xpos, smokeEmitter.particles[index].ypos, smokeEmitter.particles[index].zpos);
+      glEnd();
+    }
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_POINT_SPRITE);
+
+  #endif
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Update the display
-**********************************************************************/
+******************************************************************************/
 void progressTime() 
 {
   int index;
@@ -213,12 +246,13 @@ void progressTime()
   // gravity
   for (index = 0; index < fountain.aliveParticles; index++) 
   {
-    // if particle falls below the fountain position it is killed
+    // if particle falls below the fountain Y coordinate it is killed
     if (fountain.particles[index].ypos < FOUNTAIN_Y || fountain.particles[index].ypos > WINDOW_HEIGHT) {
       fountain.particles[index] = fountain.particles[fountain.aliveParticles - 1];
       fountain.aliveParticles--;
     }
     
+    // Move the particle
     fountain.particles[index].xpos += fountain.particles[index].xvel;
     fountain.particles[index].ypos += fountain.particles[index].yvel;
     fountain.particles[index].zpos += fountain.particles[index].zvel;
@@ -228,7 +262,7 @@ void progressTime()
   // Update each smoke particle parameters. 
   for (index = 0; index < smokeEmitter.aliveParticles; index++) 
   {
-
+    // if the particle has faded out, kill it
     if (smokeEmitter.particles[index].r <= SMOKE_DEATH_COLOUR_THRES && 
       smokeEmitter.particles[index].g <= SMOKE_DEATH_COLOUR_THRES &&
       smokeEmitter.particles[index].b <= SMOKE_DEATH_COLOUR_THRES) {
@@ -236,22 +270,25 @@ void progressTime()
       smokeEmitter.particles[index] = smokeEmitter.particles[smokeEmitter.aliveParticles - 1];
       smokeEmitter.aliveParticles--;
     }
+
+    // Otherwise
     else {
     
+      // Move the particle. If smoke hits the ground, make it crawl on it
       smokeEmitter.particles[index].xpos += smokeEmitter.particles[index].xvel;
+      smokeEmitter.particles[index].zpos += smokeEmitter.particles[index].zvel;
       smokeEmitter.particles[index].ypos += smokeEmitter.particles[index].yvel;
-      // If smoke hits the ground, make it crawl on it
       if (smokeEmitter.particles[index].ypos < SMOKE_EMITTER_Y)
         smokeEmitter.particles[index].ypos = SMOKE_EMITTER_Y;
-      
-      smokeEmitter.particles[index].zpos += smokeEmitter.particles[index].zvel;
+  
       // Apart from minor gravitational force each particle has some chaotic 
       // movement in every dimension
       smokeEmitter.particles[index].xvel += gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed);
       smokeEmitter.particles[index].zvel += boxMuller2Rand;
       smokeEmitter.particles[index].yvel += SMOKE_PARTICLE_MASS * gravity + gaussianRandom(SMOKE_CHAOS_SPEED_MEAN, smokeEmitter.chaoticSpeed * 2.0);
       
-      // Each particle fades away at slighlty different pace
+      // Each particle fades away at slighlty different pace. It both becomes 
+      // darker and more transparent
       shadeChange = gaussianRandom(SMOKE_SHADE_CHANGE_MEAN, SMOKE_SHADE_CHANGE_VAR);
       smokeEmitter.particles[index].r -= shadeChange;
       smokeEmitter.particles[index].g -= shadeChange;
@@ -262,45 +299,62 @@ void progressTime()
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Key definitions for controlling the simulation of particle system
-**********************************************************************/
+******************************************************************************/
 void keyboard(unsigned char key, int x, int y)
 {
   switch(key) 
   {
+    // Quit the program
     case 27: exit(0); break;
+    
+    // Increase and decrease gravitational force
     case 'f': gravity *= DECREASE_VAL; break;
     case 'F': gravity *= INCREASE_VAL; break; 
+    
+    // Decrease and increase the speed of smoke particle movement
     case 'c': smokeEmitter.chaoticSpeed *= DECREASE_VAL;
               break; 
     case 'C': smokeEmitter.chaoticSpeed *= INCREASE_VAL; break; 
+    
+    // Decrease and Increase water particle number
     case 'w': if (fountain.totalParticles / 2 >= 1)
                 fountain.totalParticles /= 2; 
               break;
     case 'W': fountain.totalParticles *= 2; break;
+    
+    // Decrease and Increase smoke particle number
     case 's': if (smokeEmitter.totalParticles / 2 >= 1)
                 smokeEmitter.totalParticles /= 2; 
               break;
     case 'S': smokeEmitter.totalParticles *= 2; break;
+
+    // Decrease and increase the starting red colour component of smoke particle
     case 'r': if (smokeEmitter.r - SMOKE_COLOUR_CHANGE >= 0.0)
                 smokeEmitter.r -= SMOKE_COLOUR_CHANGE; 
               break;
     case 'R': if (smokeEmitter.r + SMOKE_COLOUR_CHANGE <= 1.0)
                 smokeEmitter.r += SMOKE_COLOUR_CHANGE; 
               break;
+
+    // Decrease and increase the starting green colour component of smoke particle
     case 'g': if (smokeEmitter.g - SMOKE_COLOUR_CHANGE >= 0.0)
                 smokeEmitter.g -= SMOKE_COLOUR_CHANGE; 
               break;
     case 'G': if (smokeEmitter.g + SMOKE_COLOUR_CHANGE <= 1.0)
                 smokeEmitter.g += SMOKE_COLOUR_CHANGE; 
               break;
+    
+    // Decrease and increase the starting blue colour component of smoke particle
     case 'b': if (smokeEmitter.b - SMOKE_COLOUR_CHANGE >= 0.0)
                 smokeEmitter.b -= SMOKE_COLOUR_CHANGE; 
               break;
     case 'B': if (smokeEmitter.b + SMOKE_COLOUR_CHANGE <= 1.0)
                 smokeEmitter.b += SMOKE_COLOUR_CHANGE; 
               break;
+
+    // Reset parameters to starting values
     case 'e': gravity = DEFAULT_GRAVITY;
               initParticleSystem();
               break;
@@ -310,9 +364,9 @@ void keyboard(unsigned char key, int x, int y)
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Reshape function called whenever the application window is reshaped
-**********************************************************************/
+******************************************************************************/
 void reshape(int width, int height)
 {
   glClearColor(0.0, 0.0, 0.0, 1.0);
@@ -324,20 +378,20 @@ void reshape(int width, int height)
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Return uniformly distributed random double within range [-range,range]
-**********************************************************************/
+******************************************************************************/
 double uniformRandom(double range)
 {
   return (rand() / (double)RAND_MAX * 2.0 - 1.0) * range; 
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Return gaussian random variable with mean "mean" and standard 
 * deviation "stdDev". Uses two uniform random variables for generation of
 * a normally distributed one (Box-Muller transform)
-**********************************************************************/
+******************************************************************************/
 double gaussianRandom(double mean, double stdDev)
 {
   double uniform1, uniform2, w;
@@ -354,9 +408,9 @@ double gaussianRandom(double mean, double stdDev)
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Calculate the number of frames per second
-**********************************************************************/
+******************************************************************************/
 void calculateFPS()
 {
   //  Increase frame count
@@ -378,9 +432,9 @@ void calculateFPS()
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Display important characteristics of the simulation
-**********************************************************************/
+******************************************************************************/
 void displayData(void) 
 {
   glColor3f(1.0, 1.0, 1.0);
@@ -395,9 +449,9 @@ void displayData(void)
 }
 
 
-/*********************************************************************
+/******************************************************************************
 * Draw string ’str’ in font ’font’, at world (x,y,0)
-**********************************************************************/
+******************************************************************************/
 void drawString (void* font, float x, float y, char* str) 
 {
   char* ch;
