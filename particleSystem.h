@@ -2,7 +2,7 @@
 * File:         particleSystem.h
 * Author:       Krzysztof Koch  
 * Date created: 04/10/2016
-* Last mod:     09/11/2016
+* Last mod:     11/11/2016
 * Brief:        Function prototypes and parameters for the particle system 
 *				simulation
 ******************************************************************************/
@@ -19,11 +19,10 @@
 #include <float.h>
 #include "SOIL.h"						// Library for loading textures from files
 
-
-#ifdef MACOSX							// Include GLUT, the path depends on OS
-  #include <GLUT/glut.h> 				// MACOSX
+#ifdef MACOSX							// Include GLUT
+    #include <GLUT/glut.h> 				// MACOSX
 #else
-  #include <GL/glut.h>					// Linux
+    #include <GL/glut.h>					// Linux
 #endif
 
 
@@ -34,33 +33,23 @@
 #define RENDERING_METHOD 2
 
 
+
 /******************************************************************************
 * Simulation parameters
 ******************************************************************************/
-#define POINT_SIZE_TEXTURE 100			// Point size for textured rendering
-#define POINT_SIZE 3					// Point size (non-texture)
-#define EYE_X 0.0						// Camera position
-#define EYE_Y 0.0
-#define EYE_Z 500.0
-#define CENTER_X 0.0					// Point at which camera is pointing
-#define CENTER_Y 0.0
-#define CENTER_Z 0.0
-#define WINDOW_WIDTH 1500				// Window size
+#define POINT_SIZE_TEXTURE 100			// Point size for textured smoke rendering
+#define POINT_SIZE 3					// Point size (non-textured rendering)
+#define WINDOW_WIDTH 1450				// Window size
 #define WINDOW_HEIGHT 800
 #define DEFAULT_GRAVITY -9.81;			// Default gravitational acceleration
 #define MAX_NO_OF_PARTICLES 2000000		// Maximum and default number of 
 #define DEFAULT_NO_OF_PARTICLES 1000 	// particles in each particle system
 #define INCREASE_VAL 1.1				// Multipliers for increasing and decreasing
 #define DECREASE_VAL 0.9 				// simulation parameter values
-#define TEXT_X -515						// Starting position of text to draw
-#define TEXT_Y 270
+#define TEXT_X -60						// Starting position of text to draw
+#define TEXT_Y 510
 #define FONT_HEIGHT 12					// Font height (used for drawing multiple lines)
-
-
-/******************************************************************************
-* Current value of gravity acceleration
-******************************************************************************/		     
-double gravity = DEFAULT_GRAVITY;
+#define DEG_TO_RAD 0.017453293 			// Degree to radian conversion
 
 
 
@@ -69,9 +58,9 @@ double gravity = DEFAULT_GRAVITY;
 ******************************************************************************/
 
 // Constant parameters
-#define FOUNTAIN_X -220.0 				// Fountain location
-#define FOUNTAIN_Y -240.0
-#define FOUNTAIN_Z 0.0
+#define WATER_FOUNTAIN_X -250.0 		// Fountain location
+#define WATER_FOUNTAIN_Y 0.0
+#define WATER_FOUNTAIN_Z 0.0
 #define WATER_SPEED_MEAN 14.0			// Mean initial vertical velocity 
 #define WATER_SPEED_VAR 1.5				// Variance of initial vertical speed
 #define WATER_SIDE_SPLASH_VAR 0.25		// Max distance of side water splash
@@ -82,8 +71,8 @@ double gravity = DEFAULT_GRAVITY;
 
 // Waterdrop
 typedef struct {
-  GLdouble xpos, ypos, zpos;   			// Position
-  GLdouble xvel, yvel, zvel;   			// Velocity
+    double xpos, ypos, zpos;   			// Position
+    double xvel, yvel, zvel;   			// Velocity
 } Waterdrop;
 
 // Water
@@ -100,14 +89,15 @@ typedef struct {
 ******************************************************************************/
 
 // Constant parameters
-#define SMOKE_EMITTER_X 220.0			// Smoke emitter location
-#define SMOKE_EMITTER_Y -240.0
+#define SMOKE_EMITTER_X 250.0			// Smoke emitter location
+#define SMOKE_EMITTER_Y 0.0
 #define SMOKE_EMITTER_Z 0.0
 #define SMOKE_EMITTER_SIZE 15.0			// Variance of possible particle spawn locations
 #define SMOKE_SPEED_MEAN 0.7			// Starting vertical smoke speed		
 #define SMOKE_SPEED_VAR 0.1				
 #define SMOKE_CHAOS_SPEED_MEAN 0.0		// Velocity of particle chaotic movement
 #define SMOKE_CHAOS_SPEED_VAR 0.002		
+#define SMOKE_CHAOS_VERTICAL_MUL 2.0	// The chaotic movement is more significant in Y dimension	
 #define SMOKE_SHADE 0.8					// Initial colour of smoke (gray)
 #define SMOKE_SHADE_CHANGE_MEAN 0.0015	// Rate of smoke shade change, mean and variance
 #define SMOKE_SHADE_CHANGE_VAR 0.007	// this os for different shades of smoke
@@ -117,15 +107,18 @@ typedef struct {
 #define SMOKE_ALPHA_CHANGE 0.0001		// Rate of alpha change	
 #define SMOKE_PARTICLE_MASS 0.00002		// affects the impact of gravity
 #define SMOKE_COLOUR_CHANGE 0.05 		// How quickly colour is changed due to key presses
-#define SMOKE_DEATH_COLOUR_THRES 0.000001 // Threshold RGB colour value for killing particle
+#define SMOKE_DEATH_THRES 0.0000001      // Threshold RGB colour and alpha value for killing particle
 #define SMOKE_TEXTURE_NUMBER 25			// number of different smoke textures that can be used
-
+#define SMOKE_WIND_DIRECTION_CHANGE 10 	// Delta angle of the wind after key press	
+#define SMOKE_WIND_INIT_SPEED 0.1		// Initial wind speed and direction (angle)
+#define SMOKE_WIND_INIT_DIRECTION 90.0		
 
 // Smoke particle 
 typedef struct {
-  GLdouble xpos, ypos, zpos;   			// Position
-  GLdouble xvel, yvel, zvel;   			// Velocity
-  GLdouble r, g, b, alpha;   			// Current particle colour and aplha value
+    double xpos, ypos, zpos;   			// Position
+    double xvel, yvel, zvel;   			// Velocity
+    double r, g, b, alpha;   			// Current particle colour and aplha value
+    int textureID;                      // ID of the texture applied to the particle
 } SmokeParticle;
 
 // Smoke 
@@ -143,11 +136,115 @@ typedef struct {
 
 
 /******************************************************************************
+* Particle systems declaration
+******************************************************************************/
+Water fountain;
+Smoke smokeEmitter;
+
+
+
+/******************************************************************************
+* Current value of gravity acceleration
+******************************************************************************/		     
+double gravity;
+
+
+
+/******************************************************************************
+* Global vaiables for wind effect simulation
+******************************************************************************/
+int angle;
+double windSpeed, xWind, zWind;
+
+
+/******************************************************************************
+* Camera views
+******************************************************************************/
+
+// Camera view definition
+typedef struct {
+	double eyeX, eyeY, eyeZ;            // position of camera
+    double centerX, centerY, centerZ;   // point at which camera looks
+    double upX, upY, upZ;               // "up" direction of camera
+} CameraView;
+
+
+// General view, shows both the fountain an smoke emitter together with parameter values
+CameraView DEFAULT_VEW = {
+    .eyeX = 0.0,
+    .eyeY = 240.0,
+    .eyeZ = 500.0,
+    .centerX = 0.0,
+    .centerY = 240.0,
+    .centerZ = 0.0,
+    .upX = 0.0,
+    .upY = 1.0,
+    .upZ = 0.0
+};
+
+// Only fountain shown
+CameraView FOUNTAIN_VIEW = {
+    .eyeX = WATER_FOUNTAIN_X + 400,
+    .eyeY = WATER_FOUNTAIN_Y,
+    .eyeZ = WATER_FOUNTAIN_Z,
+    .centerX = WATER_FOUNTAIN_X,
+    .centerY = WATER_FOUNTAIN_Y + 200,
+    .centerZ = WATER_FOUNTAIN_Z,
+    .upX = 0.0,
+    .upY = 1.0,
+    .upZ = 0.0
+};
+
+// Only smoke shown
+CameraView SMOKE_VIEW = {
+    .eyeX = SMOKE_EMITTER_X - 400,
+    .eyeY = SMOKE_EMITTER_Y,
+    .eyeZ = SMOKE_EMITTER_Z,
+    .centerX = SMOKE_EMITTER_X,
+    .centerY = SMOKE_EMITTER_Y + 200,
+    .centerZ = SMOKE_EMITTER_Z,
+    .upX = 0.0,
+    .upY = 1.0,
+    .upZ = 0.0
+};
+
+// View of the fountain from above
+CameraView FOUNTAIN_TOP_VIEW = {
+    .eyeX = WATER_FOUNTAIN_X,
+    .eyeY = 600,
+    .eyeZ = WATER_FOUNTAIN_Z,
+    .centerX = WATER_FOUNTAIN_X,
+    .centerY = WATER_FOUNTAIN_Y,
+    .centerZ = WATER_FOUNTAIN_Z,
+    .upX = 0.0,
+    .upY = 0.0,
+    .upZ = 1.0
+};
+
+// View of the smoke from above
+CameraView SMOKE_TOP_VIEW = {
+    .eyeX = SMOKE_EMITTER_X,
+    .eyeY = 600,
+    .eyeZ = SMOKE_EMITTER_Z,
+    .centerX = SMOKE_EMITTER_X,
+    .centerY = SMOKE_EMITTER_Y,
+    .centerZ = SMOKE_EMITTER_Z,
+    .upX = 0.0,
+    .upY = 0.0,
+    .upZ = 1.0
+};
+
+// Current view
+CameraView *currentView;
+
+
+
+/******************************************************************************
 * Global variables for calculation of Frame Rate
 ******************************************************************************/
-int frameCount = 0;
-int currentTime, previousTime;
+int frameCount, currentTime, previousTime;
 double fps;
+
 
 
 /******************************************************************************
@@ -155,12 +252,6 @@ double fps;
 ******************************************************************************/
 char stringBuffer[50];
 
-
-/******************************************************************************
-* Particle systems declaration
-******************************************************************************/
-Water fountain;
-Smoke smokeEmitter;
 
 
 /******************************************************************************
@@ -181,10 +272,15 @@ void spawnParticles(void); 				// Spawn particles
 void drawParticles(void); 				// Render particles
 void progressTime(void); 				// Update particle parameters according to the laws 
 void display(void); 					// OpenGL callback function
+void setView (void);					// Implement various camera views
 void keyboard(unsigned char, int, int); // Keyboard callback function
+void cursor_keys(int, int, int);  		// Special keys callback function
 void reshape(int, int); 				// Window reshape callback function
 void initGraphics(int, char *argv[]); 	// OpenGL initialisation function
 void calculateFPS(void); 				// Calculate the number of frames per second
 void drawString (void*, float, float, char*); // Draw string on screen
 void displayData(void); 				// Display simulation parameters
+void computeWind(void);					// Calculate wind vector
+void createMenu(void);                  // Create menu interface
+void menu(int);                         // Create menu entries
 
