@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
   initParticleSystem();
   initGraphics(argc, argv);
   glutMainLoop();
+  return 0;
 }
 
 
@@ -179,7 +180,6 @@ void spawnParticles()
 void drawParticles() 
 {
   int index;
-  int textureID;
 
   /*--------------------------------------------------------------------------
   * Particles as points

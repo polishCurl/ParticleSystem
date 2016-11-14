@@ -22,7 +22,7 @@
 #ifdef MACOSX							// Include GLUT
     #include <GLUT/glut.h> 				// MACOSX
 #else
-    #include <GL/glut.h>					// Linux
+    #include <GL/glut.h>				// Linux
 #endif
 
 
@@ -283,4 +283,3 @@ void displayData(void); 				// Display simulation parameters
 void computeWind(void);					// Calculate wind vector
 void createMenu(void);                  // Create menu interface
 void menu(int);                         // Create menu entries
-
